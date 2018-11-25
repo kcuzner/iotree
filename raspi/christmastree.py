@@ -1,5 +1,6 @@
 import json, argparse, os, logging
-import redis
+import redis, cv2
+import numpy as np
 
 LOCAL_REDIS_HOST = '127.0.0.1'
 LOCAL_REDIS_PORT = 6379
@@ -17,8 +18,16 @@ def main():
 
     r = redis.StrictRedis(host=LOCAL_REDIS_HOST, port=LOCAL_REDIS_PORT)
 
-    print(dir(r))
-    print(r.client_list())
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        raise ValueError('Unable to open video capture')
+    try:
+        while True:
+            ret, frame = cap.read()
+    except:
+        print("releasing capture")
+        cap.release()
+        raise
 
 if __name__ == '__main__':
     main()
