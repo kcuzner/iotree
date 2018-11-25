@@ -1,13 +1,20 @@
-import json, argparse, os, logging
-import redis, cv2
-import numpy as np
-
-LOCAL_REDIS_HOST = '127.0.0.1'
-LOCAL_REDIS_PORT = 6379
+from __future__ import print_function
+import json, argparse, os, logging, fcntl, errno
+import redis, v4l2
 
 def read_settings(filename):
     with open(filename) as f:
         return json.load(f)
+
+def xioctl(fd, req, arg):
+    while True:
+        try:
+            r = fcntl.ioctl(fd, req, arg)
+        except IOError as e:
+            if e.errno != errno.EINTR:
+                raise
+        else:
+            break
 
 def main():
     parser = argparse.ArgumentParser(description='Raspberry Pi Christmas Tree Controller')
@@ -16,18 +23,14 @@ def main():
     args = parser.parse_args()
     settings = read_settings(args.settings)
 
-    r = redis.StrictRedis(host=LOCAL_REDIS_HOST, port=LOCAL_REDIS_PORT)
+    r = redis.StrictRedis(host=settings['redis-hostname'], port=settings['redis-port'])
 
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        raise ValueError('Unable to open video capture')
-    try:
-        while True:
-            ret, frame = cap.read()
-    except:
-        print("releasing capture")
-        cap.release()
-        raise
+    # Open V4L2 device and query its capabilities
+    with open(settings['video'], 'rw') as vd:
+        cp = v4l2.v4l2_capability()
+        xioctl(vd, v4l2.VIDIOC_QUERYCAP, cp)
+        print(cp.card)
+        print(hex(cp.capabilities))
 
 if __name__ == '__main__':
     main()

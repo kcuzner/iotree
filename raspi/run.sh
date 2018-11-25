@@ -14,7 +14,7 @@ while true; do
     sleep 0.1
 done
 
-python3 christmastree.py
+python2 christmastree.py
 
 kill $SSH_PID
 
