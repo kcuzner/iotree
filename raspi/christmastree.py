@@ -1,5 +1,6 @@
 from __future__ import print_function
-import json, argparse, os, logging, fcntl, errno
+import json, argparse, os, logging, fcntl, errno, mmap, select
+from ctypes import addressof, c_long
 import redis, v4l2
 
 def read_settings(filename):
@@ -16,6 +17,7 @@ def xioctl(fd, req, arg):
         except IOError as e:
             if e.errno != errno.EINTR:
                 raise
+            print("Waiting...")
         else:
             return r
 
@@ -69,7 +71,7 @@ def main():
     r = redis.StrictRedis(host=settings['redis-hostname'], port=settings['redis-port'])
 
     # Open V4L2 device
-    with open(settings['video'], 'rw') as vd:
+    with open(settings['video'], 'r+') as vd:
         # Start by querying its capabilities
         cp = v4l2.v4l2_capability()
         xioctl(vd, v4l2.VIDIOC_QUERYCAP, cp)
@@ -93,11 +95,42 @@ def main():
         vidfmt.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
         vidfmt.fmt.pix.width = framesize.discrete.width
         vidfmt.fmt.pix.height = framesize.discrete.height
-        vidfmt.fmt.pixelformat = v4l2.V4L2_PIX_FMT_MJPEG # well that naming's inconsistent...
+        vidfmt.fmt.pix.pixelformat = v4l2.V4L2_PIX_FMT_MJPEG # well that naming's inconsistent...
         vidfmt.fmt.field = v4l2.V4L2_FIELD_NONE
         xioctl(vd, v4l2.VIDIOC_S_FMT, vidfmt)
-        print('Video format selected. Resolution: {} x {}'.format(vidfmt.fmt.pix.width,
+        print('Video format selected.')
+        print('  Resolution: {} x {}'.format(vidfmt.fmt.pix.width,
             vidfmt.fmt.pix.height))
+        print('  Format: {:X}'.format(vidfmt.fmt.pix.pixelformat))
+        # Request video buffer allocation
+        breq = v4l2.v4l2_requestbuffers()
+        breq.count = 1
+        breq.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
+        breq.memory = v4l2.V4L2_MEMORY_MMAP
+        xioctl(vd, v4l2.VIDIOC_REQBUFS, breq)
+        buf = v4l2.v4l2_buffer()
+        buf.index = 0
+        buf.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
+        buf.memory = v4l2.V4L2_MEMORY_MMAP
+        xioctl(vd, v4l2.VIDIOC_QUERYBUF, buf)
+        bufmap = mmap.mmap(vd.fileno(), buf.length,
+                flags=mmap.MAP_SHARED, prot=mmap.PROT_READ | mmap.PROT_WRITE,
+                offset=buf.m.offset)
+        # Begin capture
+        buftype = c_long(buf.type)
+        print('Begin capture.')
+        xioctl(vd, v4l2.VIDIOC_STREAMON, addressof(buftype))
+        r, w, x = select.select((vd,), (), ())
+        if len(r) == 0:
+            raise ValueError('No frame was grabbed.')
+        xioctl(vd, v4l2.VIDIOC_QBUF, buf)
+        xioctl(vd, v4l2.VIDIOC_DQBUF, buf)
+        print('Got {} bytes.'.format(buf.bytesused))
+        with open('test.jpg', 'wb') as t:
+            t.write(bufmap.read(buf.bytesused))
+        xioctl(vd, v4l2.VIDIOC_STREAMOFF, addressof(buftype))
+        bufmap.close()
+
 
 if __name__ == '__main__':
     main()
