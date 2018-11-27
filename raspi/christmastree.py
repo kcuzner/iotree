@@ -1,7 +1,10 @@
 from __future__ import print_function
-import json, argparse, os, logging, fcntl, errno, mmap, select
+import json, argparse, os, logging, fcntl, errno, mmap, select, time
 from ctypes import addressof, c_long
 import redis, v4l2
+
+IMAGE_KEY = 'image'
+IMAGETIME_KEY = 'image:time'
 
 def read_settings(filename):
     with open(filename) as f:
@@ -68,7 +71,7 @@ def main():
     args = parser.parse_args()
     settings = read_settings(args.settings)
 
-    r = redis.StrictRedis(host=settings['redis-hostname'], port=settings['redis-port'])
+    db = redis.StrictRedis(host=settings['redis-hostname'], port=settings['redis-port'])
 
     # Open V4L2 device
     with open(settings['video'], 'r+') as vd:
@@ -123,11 +126,21 @@ def main():
         r, w, x = select.select((vd,), (), ())
         if len(r) == 0:
             raise ValueError('No frame was grabbed.')
-        xioctl(vd, v4l2.VIDIOC_QBUF, buf)
-        xioctl(vd, v4l2.VIDIOC_DQBUF, buf)
-        print('Got {} bytes.'.format(buf.bytesused))
-        with open('test.jpg', 'wb') as t:
-            t.write(bufmap.read(buf.bytesused))
+        start = time.time()
+        count = 1
+        while True:
+            xioctl(vd, v4l2.VIDIOC_QBUF, buf)
+            xioctl(vd, v4l2.VIDIOC_DQBUF, buf)
+            bufmap.seek(0)
+            db.set(IMAGE_KEY, bufmap.read(buf.bytesused), px=1000)
+            db.set(IMAGETIME_KEY, float(buf.timestamp.secs) + float(buf.timestamp.usecs) * 1e-6)
+            end = time.time()
+            if end - start > 1.0:
+                print('FPS: {}'.format(count / (end-start)))
+                start = end
+                count = 1
+            else:
+                count += 1
         xioctl(vd, v4l2.VIDIOC_STREAMOFF, addressof(buftype))
         bufmap.close()
 
