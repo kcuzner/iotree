@@ -50,13 +50,10 @@ RM = rm -rf
 OBJ := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.o)))
 OBJ += $(addprefix $(OBJDIR)/,$(notdir $(ASM:.S=.o)))
 
-
 all:: $(BINDIR)/$(PROJECT).bin $(BINDIR)/$(PROJECT).hex
 
-Build: $(BINDIR)/$(PROJECT).bin
-
-install: $(BINDIR)/$(PROJECT).bin
-	$(OCD) $(OCDFLAGS)
+install: $(BINDIR)/$(PROJECT).bin $(BINDIR)/openocd.pid
+	cat openocd/flash.cfg | nc localhost 4444
 
 $(BINDIR)/$(PROJECT).hex: $(BINDIR)/$(PROJECT).elf
 	$(OBJCOPY) -R .stack -O ihex $(BINDIR)/$(PROJECT).elf $(BINDIR)/$(PROJECT).hex
@@ -81,6 +78,18 @@ clean:
 
 size:
 	$(SIZE) $(BINDIR)/$(PROJECT).elf
+
+#
+# Debug
+#
+
+start: $(BINDIR)/openocd.pid
+
+stop:
+	-echo shutdown | nc localhost 4444
+
+$(BINDIR)/openocd.pid:
+	openocd/run-openocd-server.sh $(OCD) $@
 
 # Compilation
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
