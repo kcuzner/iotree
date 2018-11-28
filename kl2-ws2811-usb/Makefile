@@ -42,6 +42,7 @@ OBJCOPY = arm-none-eabi-objcopy
 SIZE = arm-none-eabi-size --format=SysV
 OBJDUMP = arm-none-eabi-objdump
 OCD = openocd
+GDB = arm-none-eabi-gdb
 
 RM = rm -rf
 
@@ -90,6 +91,9 @@ stop:
 
 $(BINDIR)/openocd.pid:
 	openocd/run-openocd-server.sh $(OCD) $@
+
+gdb:
+	$(GDB) -ex "target remote alarmpi:3333" $(BINDIR)/$(PROJECT).elf
 
 # Compilation
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
