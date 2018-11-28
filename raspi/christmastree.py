@@ -64,6 +64,51 @@ def get_framesizes(fd, pixfmt):
             raise
         i += 1
 
+class VideoBuffer(object):
+    """
+    Holds a set of buffers and returns bytes
+    """
+    def __init__(self, vd, count):
+        breq = v4l2.v4l2_requestbuffers()
+        breq.count = count
+        breq.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
+        breq.memory = v4l2.V4L2_MEMORY_MMAP
+        xioctl(vd, v4l2.VIDIOC_REQBUFS, breq)
+        print('Requested {} buffers. Received {} buffers.'\
+                .format(count, breq.count))
+        self.vd = vd
+        self.mmaps = []
+        for i in range(count):
+            buf = v4l2.v4l2_buffer()
+            buf.index = i
+            buf.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
+            buf.memory = v4l2.V4L2_MEMORY_MMAP
+            xioctl(vd, v4l2.VIDIOC_QUERYBUF, buf)
+            self.mmaps.append(mmap.mmap(vd.fileno(), buf.length,
+                flags=mmap.MAP_SHARED, prot=mmap.PROT_READ | mmap.PROT_WRITE,
+                offset=buf.m.offset))
+            # Add the buffer to the incoming queue
+            xioctl(vd, v4l2.VIDIOC_QBUF, buf)
+            print("Allocated buffer {}".format(i))
+
+    def run(self):
+        self.stop = False
+        while not self.stop:
+            # Remove the buffer from the outgoing queue
+            buf = v4l2.v4l2_buffer()
+            buf.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
+            buf.memory = v4l2.V4L2_MEMORY_MMAP
+            buf.reserved2 = 0
+            # This blocks when there is no buffer in the outgoing queue
+            xioctl(self.vd, v4l2.VIDIOC_DQBUF, buf)
+            self.mmaps[buf.index].seek(0)
+            yield (self.mmaps[buf.index].read(buf.bytesused), \
+                    float(buf.timestamp.secs) + float(buf.timestamp.usecs) * 1e-6)
+            # Add the buffer back to the incoming queue
+            buf.flags = 0
+            buf.reserved2 = 0
+            xioctl(self.vd, v4l2.VIDIOC_QBUF, buf)
+
 def main():
     parser = argparse.ArgumentParser(description='Raspberry Pi Christmas Tree Controller')
     parser.add_argument('--settings', default='./settings.json')
@@ -71,7 +116,9 @@ def main():
     args = parser.parse_args()
     settings = read_settings(args.settings)
 
-    db = redis.StrictRedis(host=settings['redis-hostname'], port=settings['redis-port'])
+
+    password = settings['redis-password'] if settings['redis-auth'] else None
+    db = redis.StrictRedis(host=settings['redis-hostname'], port=settings['redis-port'], password=password)
 
     # Open V4L2 device
     with open(settings['video'], 'r+') as vd:
@@ -89,7 +136,8 @@ def main():
             raise ValueError('Device {} does not support the M-JPEG format directly'.format(settings['video']))
         # Find the largest size. For ease of use, I'm only supporting discrete sizing.
         sizes = list(reversed(sorted([s for s in get_framesizes(vd, v4l2.V4L2_PIX_FMT_MJPEG) if
-            s.type == v4l2.V4L2_FRMSIZE_TYPE_DISCRETE], key=lambda s: s.discrete.width * s.discrete.height)))
+            s.type == v4l2.V4L2_FRMSIZE_TYPE_DISCRETE and
+            s.discrete.width * s.discrete.height < settings['pixels']], key=lambda s: s.discrete.width * s.discrete.height)))
         if len(list(sizes)) == 0:
             raise ValueError('Device {} does not support discrete step sizes'.format(settings['video']))
         framesize = sizes[0]
@@ -106,34 +154,20 @@ def main():
             vidfmt.fmt.pix.height))
         print('  Format: {:X}'.format(vidfmt.fmt.pix.pixelformat))
         # Request video buffer allocation
-        breq = v4l2.v4l2_requestbuffers()
-        breq.count = 1
-        breq.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
-        breq.memory = v4l2.V4L2_MEMORY_MMAP
-        xioctl(vd, v4l2.VIDIOC_REQBUFS, breq)
-        buf = v4l2.v4l2_buffer()
-        buf.index = 0
-        buf.type = v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE
-        buf.memory = v4l2.V4L2_MEMORY_MMAP
-        xioctl(vd, v4l2.VIDIOC_QUERYBUF, buf)
-        bufmap = mmap.mmap(vd.fileno(), buf.length,
-                flags=mmap.MAP_SHARED, prot=mmap.PROT_READ | mmap.PROT_WRITE,
-                offset=buf.m.offset)
+        buffers = VideoBuffer(vd, 4)
         # Begin capture
-        buftype = c_long(buf.type)
         print('Begin capture.')
+        buftype = c_long(v4l2.V4L2_BUF_TYPE_VIDEO_CAPTURE)
         xioctl(vd, v4l2.VIDIOC_STREAMON, addressof(buftype))
-        r, w, x = select.select((vd,), (), ())
-        if len(r) == 0:
-            raise ValueError('No frame was grabbed.')
         start = time.time()
+        end = start
         count = 1
-        while True:
-            xioctl(vd, v4l2.VIDIOC_QBUF, buf)
-            xioctl(vd, v4l2.VIDIOC_DQBUF, buf)
-            bufmap.seek(0)
-            db.set(IMAGE_KEY, bufmap.read(buf.bytesused), px=1000)
-            db.set(IMAGETIME_KEY, float(buf.timestamp.secs) + float(buf.timestamp.usecs) * 1e-6)
+        for frame, timestamp in buffers.run():
+            #print ('Frame: {}'.format(time.time() - end))
+            s = time.time()
+            db.set(IMAGE_KEY, frame, px=1000)
+            db.set(IMAGETIME_KEY, timestamp)
+            #print ('Upload: {}'.format(time.time() - s))
             end = time.time()
             if end - start > 1.0:
                 print('FPS: {}'.format(count / (end-start)))
@@ -142,7 +176,6 @@ def main():
             else:
                 count += 1
         xioctl(vd, v4l2.VIDIOC_STREAMOFF, addressof(buftype))
-        bufmap.close()
 
 
 if __name__ == '__main__':
