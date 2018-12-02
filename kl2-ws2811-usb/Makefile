@@ -25,7 +25,7 @@ INCLUDE  = -I$(INCDIR)
 LSCRIPT = kl2-dev.ld
 
 # C Flags
-GCFLAGS  = -std=gnu99 -Wall -fno-common -mthumb -mcpu=$(CPU) -DSTM32F103xB --specs=nosys.specs -g -Wa,-ahlms=$(addprefix $(OBJDIR)/,$(notdir $(<:.c=.lst)))
+GCFLAGS  = -std=gnu99 -Wall -fno-common -mthumb -mcpu=$(CPU) -DSTM32F103xB --specs=nosys.specs -g -Wa,-ahlms=$(addprefix $(OBJDIR)/,$(notdir $(<:.c=.lst))) -O3
 GCFLAGS += $(INCLUDE)
 LDFLAGS += -T$(LSCRIPT) -mthumb -mcpu=$(CPU) -Wl,-Map,$(BINDIR)/$(PROJECT).map -nostartfiles
 ASFLAGS += -mcpu=$(CPU)
