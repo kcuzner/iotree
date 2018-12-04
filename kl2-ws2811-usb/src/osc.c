@@ -42,6 +42,9 @@ void osc_set_fll(OscFllFrequency frequency, uint8_t sysclkdiv, uint8_t busclkdiv
 
     MCG_C1 = (MCG_C1 & ~MCG_C1_CLKS_MASK) | MCG_C1_CLKS(0);
     while ((MCG_S & MCG_S_CLKST_MASK) != MCG_S_CLKST(0)) { }
+
+    // The PLLFLL clock is now the FLL
+    SIM_SOPT2 &= ~SIM_SOPT2_PLLFLLSEL_MASK;
 }
 
 void osc_set_pll(uint32_t frequency, uint8_t sysclkdiv, uint8_t busclkdiv)
@@ -73,6 +76,9 @@ void osc_set_pll(uint32_t frequency, uint8_t sysclkdiv, uint8_t busclkdiv)
 
     // Set the dividers
     SIM_CLKDIV1 = SIM_CLKDIV1_OUTDIV1(sysclkdiv) | SIM_CLKDIV1_OUTDIV4(busclkdiv);
+
+    // Set the PLLFLL clock to be the PLL divided by 2
+    SIM_SOPT2 |= SIM_SOPT2_PLLFLLSEL_MASK;
 
     // Move to PEE mode
     MCG_C1 = (MCG_C1 & ~MCG_C1_CLKS_MASK) | MCG_C1_CLKS(3);
