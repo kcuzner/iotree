@@ -12,6 +12,9 @@
 #include "arm_cm0p.h"
 #include <stdint.h>
 
+#define OSC_EXTERNAL_FREQ 12000000
+#define OSC_PLL_PRDIV     2 //divide by 3 for 4MHz
+
 /**
  * Clock definitions for my own reference
  *
@@ -41,6 +44,12 @@ typedef enum {
  * clock and flash clock.
  */
 void osc_set_fll(OscFllFrequency frequency, uint8_t sysclkdiv, uint8_t busclkdiv);
+
+/**
+ * Configures the PLL to use an external crystal
+ */
+void osc_set_pll(uint32_t frequency, uint8_t sysclkdiv, uint8_t busclkdiv);
+
 
 #endif //_OSC_H_
 

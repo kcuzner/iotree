@@ -19,13 +19,14 @@ int main(void)
     SIM_SOPT2 |= SIM_SOPT2_CLKOUTSEL(2);
     PORTC_PCR3 = PORT_PCR_MUX(5);
 
+    osc_set_pll(96000000, 1, 1);
+
     SIM_SCGC6 |= SIM_SCGC6_PIT_MASK;
     PIT_MCR = 0;
     PIT_LDVAL0 = 12000000; //250ms period on a 48MHz clock
     PIT_TCTRL0 = PIT_TCTRL_TIE_MASK | PIT_TCTRL_TEN_MASK;
     NVIC_ISER = 1 << IRQ(INT_PIT);
 
-    osc_set_fll(OSC_FLL_48MHZ, 0, 1);
     //move to FBI, prep for allowing FLL to reach its target frequency
     /*MCG_C2 = MCG_C2_LOCRE0_MASK | MCG_C2_FCFTRIM_MASK | MCG_C2_IRCS_MASK;
     MCG_C6 = 0;*/
