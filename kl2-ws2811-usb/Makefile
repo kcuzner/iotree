@@ -33,7 +33,8 @@ LSCRIPT = kl2-dev.ld
 
 # C Flags
 GCFLAGS  = -std=gnu99 -Wall -fno-common -mthumb -mcpu=$(CPU) -DSTM32F103xB --specs=nosys.specs -g -Wa,-ahlms=$(addprefix $(OBJDIR)/,$(notdir $(<:.c=.lst))) -O3
-GCFLAGS += $(INCLUDE)
+GCFLAGS += $(INCLUDE) -DUSB_DEBUG
+CFLAGS  += $(GCFLAGS)
 LDFLAGS += -T$(LSCRIPT) -mthumb -mcpu=$(CPU) -Wl,-Map,$(BINDIR)/$(PROJECT).map -nostartfiles
 LDFLAGS += $(LDINCLUDE)
 ASFLAGS += -mcpu=$(CPU)
@@ -105,7 +106,7 @@ GENERATE_USB_DESCRIPTOR_SRC=_gen_usb_desc.c
 GENERATE_USB_DESCRIPTOR_HDR=_gen_usb_desc.h
 
 OBJ := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.o)))
-OBJ += $(addprefix $(OBJDIR)/,$(notdir $(ASM:.S=.o)))
+OBJ += $(addprefix $(OBJDIR)/,$(notdir $(ASM:.s=.o)))
 ifneq ($(filter $(GENERATE), $(GENERATE_USB_DESCRIPTOR)),)
 	GEN_OBJ += $(GENDIR)/$(GENERATE_USB_DESCRIPTOR_SRC:.c=.o)
 	GEN_TARGETS += $(GENERATE_USB_DESCRIPTOR)

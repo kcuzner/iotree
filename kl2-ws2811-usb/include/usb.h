@@ -11,7 +11,8 @@
 #include <stdint.h>
 
 // For compatibility with the STM32 these are defined. However, the STM32 has
-// requirements for alignment of USB data.
+// no requirements for alignment of USB data and it can be located anywhere in
+// system memory.
 #define USB_DATA_ALIGN
 
 #define USB_CONTROL_ENDPOINT_SIZE 64

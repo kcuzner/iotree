@@ -37,10 +37,10 @@ typedef volatile uint32		vuint32; /* 32 bits */
 #define EnableInterrupts()      asm(" CPSIE i")
 #define DisableInterrupts()     asm(" CPSID i")
 #define IRQ(N)                  (N - 16)
-#define NVIC_ENABLE_IRQ(n)      NVIC_ISER = NVIC_ISER_SETENA(n)
-#define NVIC_DISABLE_IRQ(n)     NVIC_ICER = NVIC_ICER_CLRENA(n)
-#define NVIC_SET_PENDING(n)     NVIC_ISPR = NVIC_ISPR_SETPEND(n)
-#define NVIC_CLEAR_PENDING(n)   NVIC_ICPR = NVIC_ICPR_CLRPEND(n)
+#define NVIC_ENABLE_IRQ(n)      NVIC_ISER = NVIC_ISER_SETENA(1 << (n))
+#define NVIC_DISABLE_IRQ(n)     NVIC_ICER = NVIC_ICER_CLRENA(1 << (n))
+#define NVIC_SET_PENDING(n)     NVIC_ISPR = NVIC_ISPR_SETPEND(1 << (n))
+#define NVIC_CLEAR_PENDING(n)   NVIC_ICPR = NVIC_ICPR_CLRPEND(1 << (n))
 void nvic_set_priority(uint8_t irq, uint8_t priority);
 
 #endif // _ARM_CM0P_H_
