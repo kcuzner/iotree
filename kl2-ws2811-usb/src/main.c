@@ -10,6 +10,7 @@
 #include "osc.h"
 #include "usb.h"
 #include "usb_app.h"
+#include "leds.h"
 
 const USBApplicationSetup setup = {
     .interface_list = NULL,
@@ -66,6 +67,15 @@ const USBApplicationSetup *usb_app_setup = &setup;
  * </descriptor>
  */
 
+static uint8_t leds_buffer[] = {
+    255, 0, 0,
+    0, 255, 0,
+    0, 0, 255,
+    255, 255, 0,
+    0, 255, 255,
+    255, 0, 255
+};
+
 int main(void)
 {
     SIM_SCGC5 |= SIM_SCGC5_PORTD_MASK;
@@ -81,7 +91,7 @@ int main(void)
     // Set the PLL to 96MHz (divided by 2 for the 48MHz system clock and
     // by 2 again for the 24MHz bus clock).
     osc_set_pll(96000000, 1, 1);
-    
+
     // Select the PLL for the USB clock source
 
     SIM_SCGC6 |= SIM_SCGC6_PIT_MASK;
@@ -96,7 +106,10 @@ int main(void)
 
     usb_enable();
 
+    leds_init();
+
     while(1) {
+        leds_write(leds_buffer, sizeof(leds_buffer));
     }
     return 0;
 }
