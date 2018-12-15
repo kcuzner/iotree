@@ -67,14 +67,21 @@ const USBApplicationSetup *usb_app_setup = &setup;
  * </descriptor>
  */
 
-static uint8_t leds_buffer[] = {
-    255, 0, 0,
-    0, 255, 0,
-    0, 0, 255,
-    255, 255, 0,
-    0, 255, 255,
-    255, 0, 255
-};
+static uint8_t leds_buffer[150];
+
+static uint8_t leds_target[150];
+
+uint32_t lfsr = 0x19abf3e1;
+
+uint8_t lfsr_next(void) {
+    unsigned lsb = lfsr & 0x1;
+    lfsr >>= 1;
+    if (lsb) {
+        lfsr ^= 0x84000002;
+    }
+
+    return lfsr & 0xFF;
+}
 
 int main(void)
 {
@@ -104,12 +111,22 @@ int main(void)
 
     EnableInterrupts();
 
-    usb_enable();
-
     leds_init();
 
+    uint8_t count = 0;
     while(1) {
         leds_write(leds_buffer, sizeof(leds_buffer));
+        if (!(count & 0x3)) {
+            for (size_t i = 0; i < sizeof(leds_buffer); i++) {
+                if (leds_buffer[i] != leds_target[i]) {
+                    leds_buffer[i] += leds_target[i] > leds_buffer[i] ? 1 : -1;
+                }
+                else {
+                    leds_target[i] = lfsr_next();
+                }
+            }
+        }
+        count++;
     }
     return 0;
 }
