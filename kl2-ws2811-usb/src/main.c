@@ -11,6 +11,7 @@
 #include "usb.h"
 #include "usb_app.h"
 #include "leds.h"
+#include "spi.h"
 
 const USBApplicationSetup setup = {
     .interface_list = NULL,
@@ -111,21 +112,14 @@ int main(void)
 
     EnableInterrupts();
 
+    spi_init();
     leds_init();
 
     uint8_t count = 0;
     while(1) {
+        size_t t;
+        spi_slave_read(leds_buffer, sizeof(leds_buffer), &t);
         leds_write(leds_buffer, sizeof(leds_buffer));
-        if (!(count & 0x3)) {
-            for (size_t i = 0; i < sizeof(leds_buffer); i++) {
-                if (leds_buffer[i] != leds_target[i]) {
-                    leds_buffer[i] += leds_target[i] > leds_buffer[i] ? 1 : -1;
-                }
-                else {
-                    leds_target[i] = lfsr_next();
-                }
-            }
-        }
         count++;
     }
     return 0;
