@@ -60,7 +60,7 @@ PYTHON = python3
 SCRIPTDIR = ./scripts
 DESCRIPTORGEN = $(PYTHON) $(SCRIPTDIR)/descriptorgen.py
 
-GENERATE = USB_DESCRIPTOR
+GENERATE =
 
 
 #
@@ -77,7 +77,7 @@ macros:
 
 cleanBuild: clean
 
-clean:
+clean: stop
 	$(RM) $(BINDIR)
 	$(RM) $(OBJDIR)
 
