@@ -1,5 +1,5 @@
 import spidev
-import random
+import random, sched, time
 from colorsys import hsv_to_rgb
 import itertools
 
@@ -8,10 +8,16 @@ def fuzzy_equals(a, b, margin):
 
 class Pixel(object):
     """
-    Defines a single LED pixel which has color changing capabilities
+    Defines a single LED pixel which has color changing capabilities.
+
+    The pixel color sequence is exposed as an iterator
     """
-    def next_color(self):
+    def __iter__(self):
+        return self
+    def __next__(self):
         return (0, 0, 0)
+    def next(self):
+        return self.__next__()
 
 class RandomHuePixel(Pixel):
     """
@@ -21,7 +27,7 @@ class RandomHuePixel(Pixel):
         self.step = step
         self.target = random.random()
         self.hue = self.target
-    def next_color(self):
+    def __next__(self):
         if fuzzy_equals(self.hue, self.target, self.step):
             self.target = random.random()
         elif self.hue < self.target:
@@ -32,12 +38,24 @@ class RandomHuePixel(Pixel):
 
 class Keyframe(object):
     """
-    Handles transitioning between color keyframes. This is simply a hard
-    transition
+    Handles transitioning between color keyframes. This implementation is
+    simply a hard transition.
     """
-    def __init__(self, color):
+    def __init__(self, color, steps=None, max_steps=50):
+        self.steps = steps
+        self.max_steps = max_steps
         self.color = color
-    def interpolate(self, other, cursor):
+
+    def interpolate(self, other):
+        if not self.steps:
+            steps = int(random.random() * self.max_steps) + 1
+        else:
+            steps = self.steps
+        for i in range(0, steps+1):
+            cursor = i / steps
+            yield self.interpolate_step(other, cursor)
+
+    def interpolate_step(self, other, cursor):
         if cursor < 0.5:
             return self.color
         else:
@@ -47,9 +65,10 @@ class LinearKeyframe(Keyframe):
     """
     Transitions linearly between this color and the next
     """
-    def __init__(self, color):
-        super(Keyframe, self).__init__(color)
-    def interpolate(self, other, cursor):
+    def __init__(self, color, steps=None, max_steps=50):
+        super(Keyframe, self).__init__(color, steps, max_steps)
+
+    def interpolate_step(self, other, cursor):
         m = self.other - self.color
         return m * cursor + self.color
 
@@ -57,24 +76,24 @@ class KeyframePixel(Pixel):
     """
     Pixel which follows a series of keyframes, repeating them over and over
     """
-    def __init__(self, keys, step):
+    def __init__(self, keys):
         self.keys = keys
-        self.step = step
-        self.index = 0
-    def next_color(self):
-        index = int(self.index)
-        cursor = self.index - index
-        next_index = int((self.index + 1) % len(self.keys))
-        color = self.keys[index].interpolate(self.keys[next_index], cursor)
-        self.index += self.step
-        return color
+
+    def __iter__(self):
+        keylen = len(self.keys)
+        while True:
+            for i, k in enumerate(self.keys):
+                for pix in k.interpolate(self.keys[(i+1) % keylen]):
+                    yield pix
 
 class LedString(object):
     def __init__(self, length):
-        self.pixels = []
+        self.__pixeliters = []
         self.buffer = [0] * length * 3
+    def set_pixels(self, pixels):
+        self.__pixeliters = list([iter(p) for p in pixels])
     def animate(self):
-        colors = list([p.next_color() for p in self.pixels])
+        colors = list([next(p) for p in self.__pixeliters])
         for i, color in enumerate(itertools.cycle(colors)):
             if i*3 >= len(self.buffer):
                 break
@@ -87,13 +106,19 @@ def main():
     spi.max_speed_hz = 400000
     spi.mode = 0b01
 
-    keys = [Keyframe((255, 255, 0)), Keyframe((0, 0, 255))]
+    keys = [Keyframe((255, 255, 0), 10), Keyframe((0, 0, 255), 10)]
 
     leds = LedString(50)
-    leds.pixels = list([RandomHuePixel(0.002) for _ in range(0, 10)])
+    leds.set_pixels([KeyframePixel(keys) for _ in range(0, 1)])
 
-    while True:
+    s = sched.scheduler(time.time, time.sleep)
+
+    def run_leds():
+        s.enter(0.03, 0, run_leds, ())
         spi.xfer(leds.animate())
+
+    run_leds()
+    s.run()
 
 if __name__ == '__main__':
     main()
