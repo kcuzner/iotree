@@ -25,9 +25,9 @@ int main(void)
     SIM_SOPT2 |= SIM_SOPT2_CLKOUTSEL(2);
     PORTC_PCR3 = PORT_PCR_MUX(5);*/
 
-    // Set the PLL to 96MHz (divided by 2 for the 48MHz system clock and
-    // by 2 again for the 24MHz bus clock).
-    osc_set_pll(96000000, 1, 1);
+    // Use the internal FLL. The circuit on my board for the external crystal
+    // is badly designed and I believe its unstable.
+    osc_set_fll(OSC_FLL_48MHZ, 0, 1);
 
     // Select the PLL for the USB clock source
 
