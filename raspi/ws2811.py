@@ -1,3 +1,4 @@
+from __future__ import print_function
 import spidev
 import random, sched, time, math
 from colorsys import hsv_to_rgb, rgb_to_hsv
@@ -74,7 +75,7 @@ class SineKeyframe(LinearKeyframe):
     Uses a sine wave to transition between colors
     """
     def interpolate_step(self, other, cursor):
-        modcursor = math.cos(cursor * math.pi / 2)
+        modcursor = math.sin(cursor * math.pi / 2)
         return super(SineKeyframe, self).interpolate_step(other, modcursor)
 
 class KeyframePixel(Pixel):
@@ -111,10 +112,15 @@ def main():
     spi.max_speed_hz = 400000
     spi.mode = 0b01
 
-    keys = [LinearKeyframe((255, 255, 0), 10), LinearKeyframe((0, 0, 255), 10)]
+    keys = []
+    for i in range(0, 7):
+        keys.append(list([SineKeyframe((255, 255, 0) if i == j else (0, 0, 0), 3) for
+            j in range(0, 7)]))
+
+    pixels = [KeyframePixel(keys[i]) for i in range(0, 7)]
 
     leds = LedString(50)
-    leds.set_pixels([KeyframePixel(keys) for _ in range(0, 10)])
+    leds.set_pixels(pixels)
 
     s = sched.scheduler(time.time, time.sleep)
 
