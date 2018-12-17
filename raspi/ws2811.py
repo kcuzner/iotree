@@ -1,8 +1,9 @@
 from __future__ import print_function
 import spidev
-import random, sched, time, math
+import random, sched, time, math, argparse
 from colorsys import hsv_to_rgb, rgb_to_hsv
 import itertools
+import redis
 
 def fuzzy_equals(a, b, margin):
     return abs(a - b) < margin
@@ -107,6 +108,9 @@ class LedString(object):
         return self.buffer
 
 def main():
+    parser = argparse.ArgumentParser(description='Raspberry Pi WS2811 SPI Controller')
+    parser.add_argument('--settings', default='./settings.json')
+
     spi = spidev.SpiDev()
     spi.open(0, 0)
     spi.max_speed_hz = 400000

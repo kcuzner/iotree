@@ -110,7 +110,7 @@ class VideoBuffer(object):
             xioctl(self.vd, v4l2.VIDIOC_QBUF, buf)
 
 def main():
-    parser = argparse.ArgumentParser(description='Raspberry Pi Christmas Tree Controller')
+    parser = argparse.ArgumentParser(description='Raspberry Pi Webcam Streaming Controller')
     parser.add_argument('--settings', default='./settings.json')
 
     args = parser.parse_args()
