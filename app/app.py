@@ -5,7 +5,7 @@ eventlet.monkey_patch()
 
 import socketio
 import argparse, io, json
-from flask import Flask, render_template, send_from_directory
+from flask import Flask, render_template, send_from_directory, request
 import redis
 
 sio = socketio.Server()
@@ -37,6 +37,8 @@ def stream_image(settings):
                 data = db_image.get('image')
                 sio.emit('image', {'image': data})
 
+db_app = None
+
 @app.route('/')
 def index():
     global path_prefix
@@ -49,6 +51,13 @@ def send_js(path):
 @app.route('/css/<path:path>')
 def send_css(path):
     return send_from_directory('static/css', path)
+
+@app.route('/pattern', methods=['POST'])
+def pattern():
+    j = request.get_json()
+    #TODO: Some sanitizing
+    db_app.publish('pixels', json.dumps(j))
+    return json.dumps({ 'success': True }), 200, { 'content-type': 'application/json' }
 
 @sio.on('connect')
 def sio_connect(sid, environ):
@@ -63,6 +72,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     path_prefix = settings['path-prefix']
+
+    db_app = open_redis(settings)
 
     eventlet.spawn(stream_image, settings)
 
