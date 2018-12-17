@@ -3,6 +3,8 @@ import json, argparse, os, logging, fcntl, errno, mmap, select, time
 from ctypes import addressof, c_long
 import redis, v4l2
 
+import common
+
 IMAGE_KEY = 'image'
 IMAGETIME_KEY = 'image:time'
 
@@ -114,11 +116,9 @@ def main():
     parser.add_argument('--settings', default='./settings.json')
 
     args = parser.parse_args()
-    settings = read_settings(args.settings)
+    settings = common.read_settings(args.settings)
 
-
-    password = settings['redis-password'] if settings['redis-auth'] else None
-    db = redis.StrictRedis(host=settings['redis-hostname'], port=settings['redis-port'], password=password)
+    db = common.open_redis(settings)
 
     # Open V4L2 device
     with open(settings['video'], 'r+') as vd:

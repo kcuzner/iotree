@@ -1,9 +1,11 @@
 from __future__ import print_function
 import spidev
-import random, sched, time, math, argparse
+import random, sched, time, math, argparse, json, queue
 from colorsys import hsv_to_rgb, rgb_to_hsv
 import itertools
 import redis
+
+import common
 
 def fuzzy_equals(a, b, margin):
     return abs(a - b) < margin
@@ -107,22 +109,51 @@ class LedString(object):
             self.buffer[i*3:(i+1)*3] = color
         return self.buffer
 
+def load_pixels(doc):
+    for d in doc:
+        if d['type'] == 'random-hue':
+            yield RandomHuePixel(float(d['step']))
+        elif d['type'] == 'keyframe':
+            keys = []
+            for k in d['keys']:
+                color = (int(k['r']), int(k['g']), int(k['b']))
+                steps = int(k['steps']) if 'steps' in k else None
+                max_steps = int(k['max_steps']) if 'max-steps' in k else None
+                if k['type'] == 'linear':
+                    keys.append(LinearKeyframe(color, steps, max_steps))
+                elif k['type'] == 'sine':
+                    keys.append(SineKeyframe(color, steps, max_steps))
+                elif k['type'] == 'wall':
+                    keys.append(Keyframe(color, steps, max_steps))
+            yield KeyframePixel(keys)
+
+def deserialize_pixels(serialized):
+    try:
+        doc = json.loads(serialized)
+        pixels = list(load_pixels(doc))
+        return pixels
+    except TypeError:
+        return []
+    except KeyError:
+        return []
+
 def main():
     parser = argparse.ArgumentParser(description='Raspberry Pi WS2811 SPI Controller')
     parser.add_argument('--settings', default='./settings.json')
+
+    args = parser.parse_args()
+    settings = common.read_settings(args.settings)
+
+    db = common.open_redis(settings)
+    p = db.pubsub()
+    p.subscribe('pixels')
 
     spi = spidev.SpiDev()
     spi.open(0, 0)
     spi.max_speed_hz = 400000
     spi.mode = 0b01
 
-    keys = []
-    for i in range(0, 7):
-        keys.append(list([SineKeyframe((255, 255, 0) if i == j else (0, 0, 0), 3) for
-            j in range(0, 7)]))
-
-    pixels = [KeyframePixel(keys[i]) for i in range(0, 7)]
-
+    pixels = list(load_pixels(settings['initial-pattern']))
     leds = LedString(50)
     leds.set_pixels(pixels)
 
@@ -132,7 +163,19 @@ def main():
         s.enter(0.03, 0, run_leds, ())
         spi.xfer(leds.animate())
 
+    def handle_requests():
+        s.enter(0.01, 1, handle_requests, ())
+        while True:
+            msg = p.get_message()
+            if msg and msg['type'] == 'message':
+                pixels = list(deserialize_pixels(msg['data']))
+                if len(pixels):
+                    leds.set_pixels(pixels)
+            elif not msg:
+                break
+
     run_leds()
+    handle_requests()
     s.run()
 
 if __name__ == '__main__':
