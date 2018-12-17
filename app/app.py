@@ -4,7 +4,7 @@ import eventlet
 eventlet.monkey_patch()
 
 import socketio
-import argparse
+import argparse, io, json
 from flask import Flask, render_template, send_from_directory
 import redis
 
@@ -14,12 +14,20 @@ app.debug = True
 
 path_prefix = ''
 
-def stream_image():
+def read_settings(filename):
+    with open(filename) as f:
+        return json.load(f)
+
+def open_redis(settings):
+    password = settings['redis-password'] if settings['redis-auth'] else None
+    return redis.StrictRedis(host=settings['redis-hostname'], port=settings['redis-port'], password=password)
+
+def stream_image(settings):
     """
     Streams images from the server into sio
     """
-    db_stream = redis.StrictRedis(host='127.0.0.1', port='6379')
-    db_image = redis.StrictRedis(host='127.0.0.1', port='6379')
+    db_stream = open_redis(settings)
+    db_image = open_redis(settings)
     ps = db_stream.pubsub()
     ps.subscribe('__keyspace@0__:image')
     while True:
@@ -48,12 +56,15 @@ def sio_connect(sid, environ):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Christmas Tree Controller App')
-    parser.add_argument('--path-prefix', default='/', help='Path prefix this app is running under (for reverse-proxy)')
+    parser.add_argument('--settings', default='./settings.json')
 
     args = parser.parse_args()
-    path_prefix = args.path_prefix
+    settings = read_settings(args.settings)
 
-    eventlet.spawn(stream_image)
+    args = parser.parse_args()
+    path_prefix = settings['path-prefix']
+
+    eventlet.spawn(stream_image, settings)
 
     app = socketio.Middleware(sio, app)
     eventlet.wsgi.server(eventlet.listen(('', 3000)), app)
