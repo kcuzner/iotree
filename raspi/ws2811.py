@@ -1,6 +1,6 @@
 import spidev
-import random, sched, time
-from colorsys import hsv_to_rgb
+import random, sched, time, math
+from colorsys import hsv_to_rgb, rgb_to_hsv
 import itertools
 
 def fuzzy_equals(a, b, margin):
@@ -52,7 +52,7 @@ class Keyframe(object):
         else:
             steps = self.steps
         for i in range(0, steps+1):
-            cursor = i / steps
+            cursor = float(i) / float(steps)
             yield self.interpolate_step(other, cursor)
 
     def interpolate_step(self, other, cursor):
@@ -65,12 +65,17 @@ class LinearKeyframe(Keyframe):
     """
     Transitions linearly between this color and the next
     """
-    def __init__(self, color, steps=None, max_steps=50):
-        super(Keyframe, self).__init__(color, steps, max_steps)
-
     def interpolate_step(self, other, cursor):
-        m = self.other - self.color
-        return m * cursor + self.color
+        return tuple([int((oc - sc) * cursor) + sc for oc, sc in
+            zip(other.color, self.color)])
+
+class SineKeyframe(LinearKeyframe):
+    """
+    Uses a sine wave to transition between colors
+    """
+    def interpolate_step(self, other, cursor):
+        modcursor = math.cos(cursor * math.pi / 2)
+        return super(SineKeyframe, self).interpolate_step(other, modcursor)
 
 class KeyframePixel(Pixel):
     """
@@ -106,10 +111,10 @@ def main():
     spi.max_speed_hz = 400000
     spi.mode = 0b01
 
-    keys = [Keyframe((255, 255, 0), 10), Keyframe((0, 0, 255), 10)]
+    keys = [LinearKeyframe((255, 255, 0), 10), LinearKeyframe((0, 0, 255), 10)]
 
     leds = LedString(50)
-    leds.set_pixels([KeyframePixel(keys) for _ in range(0, 1)])
+    leds.set_pixels([KeyframePixel(keys) for _ in range(0, 10)])
 
     s = sched.scheduler(time.time, time.sleep)
 
