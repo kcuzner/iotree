@@ -1,4 +1,4 @@
-const socket = io('http://localhost', { path: "/app/socket.io" });
+const socket = io('http://localhost', { path: "/app/socket.io", transports: ['websocket'], upgrade: false });
 
 socket.on('image', function(data) {
     var canvas = document.getElementById('canvas');
