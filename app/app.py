@@ -52,10 +52,52 @@ def send_js(path):
 def send_css(path):
     return send_from_directory('static/css', path)
 
+def repack_pixels(raw):
+    # Only support up to 50 pixels
+    if len(raw) > 50:
+        raw = raw[:50]
+    # Sanitize the pixels
+    for d in raw:
+        if d['type'] == 'random-hue':
+            step = float(d['step'])
+            if step > 0.1:
+                step = 0.1
+            if step < 0:
+                step = 0
+            yield { 'type': 'random-hue', 'step': step }
+        elif d['type'] == 'keyframe':
+            keys = []
+            for k in d['keys']:
+                # Extract numeric data
+                key = { 'r': int(k['r']), 'g': int(k['g']), 'b': int(k['b']) }
+                if 'steps' in k:
+                    key['steps'] = int(k['steps'])
+                if 'max-steps' in k:
+                    key['max-steps'] = int(k['max-steps'])
+                # Clamp all numeric values at 0-255
+                key = dict([(k, abs(v) & 0xFF) for k, v in key.items()])
+                # Only accept specific key types
+                if k['type'] == 'linear':
+                    key['type'] = 'linear'
+                    keys.append(key)
+                elif k['type'] == 'sine':
+                    key['type'] = 'sine'
+                    keys.append(key)
+                elif k['type'] == 'wall':
+                    key['type'] = 'wall'
+                    keys.append(key)
+            # only accept up to 64 keyframes
+            if len(keys) < 64:
+                keys = keys[:64]
+            yield { 'type': 'keyframe', 'keys': keys }
+        else:
+            raise ValueError('No such pixel type')
+
+
 @app.route('/pattern', methods=['POST'])
 def pattern():
     j = request.get_json()
-    #TODO: Some sanitizing
+    repacked = list(repack_pixels(j))
     db_app.publish('pixels', json.dumps(j))
     return json.dumps({ 'success': True }), 200, { 'content-type': 'application/json' }
 
