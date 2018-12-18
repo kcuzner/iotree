@@ -6,7 +6,9 @@ socket.on('image', function(data) {
     var blob = new Blob([data.image], { type: 'image/jpeg' });
     var img = new Image();
     img.onload = function () {
-        ctx.drawImage(img, 0, 0);
+        console.log(img.width, img.height);
+        width = img.width / img.height * 320
+        ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, width, 320);
     }
     img.src = URL.createObjectURL(blob);
 });
