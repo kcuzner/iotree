@@ -5,7 +5,7 @@ eventlet.monkey_patch()
 
 import socketio
 import argparse, io, json
-from flask import Flask, render_template, send_from_directory, request
+from flask import Flask, render_template, send_from_directory, request, Response
 import redis
 
 sio = socketio.Server()
@@ -24,7 +24,7 @@ def open_redis(settings):
 
 def stream_image(settings):
     """
-    Streams images from the server into sio
+    Streams images from the server as a generator
     """
     db_stream = open_redis(settings)
     db_image = open_redis(settings)
@@ -35,7 +35,8 @@ def stream_image(settings):
             if message['channel'] == b'__keyspace@0__:image' and\
                     message['data'] == b'set':
                 data = db_image.get('image')
-                sio.emit('image', {'image': data})
+                yield (b'--frame\r\n'
+                        b'Content-Type: image/jpeg\r\n\r\n' + data + b'\r\n')
 
 db_app = None
 
@@ -51,6 +52,11 @@ def send_js(path):
 @app.route('/css/<path:path>')
 def send_css(path):
     return send_from_directory('static/css', path)
+
+@app.route('/video')
+def video_feed():
+    return Response(stream_image(settings),
+            mimetype='multipart/x-mixed-replace; boundary=frame')
 
 def repack_pixels(raw):
     # Only support up to 50 pixels
