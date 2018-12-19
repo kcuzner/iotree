@@ -25,6 +25,9 @@ def open_redis(settings):
 def stream_image(settings):
     """
     Streams images from the server as a generator
+
+    Note that this opens its own redis connection and gets its own copies of
+    the image sequence.
     """
     db_stream = open_redis(settings)
     db_image = open_redis(settings)
@@ -55,8 +58,34 @@ def send_css(path):
 
 @app.route('/video')
 def video_feed():
-    return Response(stream_image(settings),
+    """
+    Streams images from the server
+    """
+    db_stream = open_redis(settings)
+    db_image = open_redis(settings)
+    ps = db_stream.pubsub()
+    ps.subscribe('__keyspace@0__:image')
+
+    streamon = True
+
+    def generate():
+        while streamon:
+            for message in ps.listen():
+                if message['channel'] == b'__keyspace@0__:image' and\
+                        message['data'] == b'set':
+                    data = db_image.get('image')
+                    yield (b'--frame\r\n'
+                            b'Content-Type: image/jpeg\r\n\r\n' + data + b'\r\n')
+
+    response = Response(generate(),
             mimetype='multipart/x-mixed-replace; boundary=frame')
+
+    @response.call_on_close
+    def done():
+        streamon = False
+        ps.close()
+
+    return response
 
 def repack_pixels(raw):
     # Only support up to 50 pixels
