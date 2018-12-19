@@ -15,7 +15,7 @@
       <div class="row justify-content-center">
         <div class="col-10">
           <div class="card">
-            <img src="{{ path_prefix }}{{ url_for('video_feed') }}" class="card-img-top" style="height: 320px;" />
+            <img src="{{ path_prefix }}{{ url_for('video_feed') }}" class="card-img-top" />
             <div class="card-body">
               <div class="row justify-content-between">
                 <div class="col-6" style="text-align: left;">
@@ -88,8 +88,6 @@
             application on the cloud server connects to the same redis instance and uses the PUBSUB functionality to
             receive the realtime webcam image published by the Raspberry Pi and also issue commands back to the
             Raspberry Pi.
-            <a href="https://socket.io/">Socketio</a> is used to communicate between this (mostly static) page and the
-            python app running on the server.
           </p>
         </div>
         <div class="col-4">
