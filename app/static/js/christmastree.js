@@ -258,6 +258,10 @@ var patctl = new Vue({
                 if (!('keys' in led) || !led.keys.length) {
                     Vue.set(led, 'keys', [{ 'r': 255, 'g': 0, 'b': 0, 'steps': 10, 'type': 'sine'}]);
                 }
+            } else if (led.type == 'random-hue') {
+                if (!('step' in led) || !led.step) {
+                    Vue.set(led, 'step', 0.002)
+                }
             }
         },
         addFrame: function (led) {
