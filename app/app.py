@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import print_function
 
 import eventlet
 eventlet.monkey_patch()
@@ -110,7 +111,7 @@ def repack_pixels(raw):
                 if 'max-steps' in k:
                     key['max-steps'] = int(k['max-steps'])
                 # Clamp all numeric values at 0-255
-                key = dict([(k, abs(v) & 0xFF) for k, v in key.items()])
+                key = dict([(ke, abs(v) & 0xFF) for ke, v in key.items()])
                 # Only accept specific key types
                 if k['type'] == 'linear':
                     key['type'] = 'linear'
