@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python27
 from __future__ import print_function
 
 import eventlet
@@ -22,25 +22,6 @@ def read_settings(filename):
 def open_redis(settings):
     password = settings['redis-password'] if settings['redis-auth'] else None
     return redis.StrictRedis(host=settings['redis-hostname'], port=settings['redis-port'], password=password)
-
-def stream_image(settings):
-    """
-    Streams images from the server as a generator
-
-    Note that this opens its own redis connection and gets its own copies of
-    the image sequence.
-    """
-    db_stream = open_redis(settings)
-    db_image = open_redis(settings)
-    ps = db_stream.pubsub()
-    ps.subscribe('__keyspace@0__:image')
-    while True:
-        for message in ps.listen():
-            if message['channel'] == b'__keyspace@0__:image' and\
-                    message['data'] == b'set':
-                data = db_image.get('image')
-                yield (b'--frame\r\n'
-                        b'Content-Type: image/jpeg\r\n\r\n' + data + b'\r\n')
 
 db_app = None
 
@@ -152,8 +133,6 @@ if __name__ == '__main__':
     path_prefix = settings['path-prefix']
 
     db_app = open_redis(settings)
-
-    eventlet.spawn(stream_image, settings)
 
     app = socketio.Middleware(sio, app)
     eventlet.wsgi.server(eventlet.listen(('', 3000)), app)
