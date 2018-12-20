@@ -1,3 +1,10 @@
+.heading {
+  font-family: 'Pacifico', Helvetica, sans-serif;
+  color: #2b2b2b;
+  text-shadow: 1px 1px 0px #ededed, 4px 4px 0px rgba(0,0,0,0.15);
+  text-align: center;
+}
+
 .ct-table {
   width: inherit !important;
   table-layout: fixed;
@@ -16,6 +23,7 @@
 
 .ct-table td:last-child, .ct-table th:last-child {
   width: auto;
+  text-align: left;
 }
 
 .ct-keyframes {
