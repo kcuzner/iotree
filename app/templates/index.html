@@ -19,10 +19,17 @@
       <h1 class="heading">The IoTree</h1>
       <h4 class="heading">Internet-Connected Christmas Tree</h4>
       <div class="row justify-content-center">
-        <div class="col-10">
+        <div id="pattern-control" class="col-10">
           <div class="card">
-            <img src="{{ path_prefix }}{{ url_for('video_feed') }}" class="card-img-top" />
-            <div class="card-body" id="pattern-control">
+            <div class="video-container">
+              <img src="{{ path_prefix }}{{ url_for('video_feed') }}" @load="frameCount++" class="card-img-top" />
+              <div class="overlay text-center" :class="{'d-none': videoRunning}">
+                <p class="h1"><i class="fa fa-spinner fa-spin"></i></p>
+                <p :class="{'d-none': !frameCount}">The video is not connected. Consider refreshing the page.</p>
+                <a :class="{'d-none': !frameCount}" href="javascript:location.reload()" class="btn btn-success btn-lg"><i class="fa fa-sync"></i></a>
+              </div>
+            </div>
+            <div class="card-body">
               <div class="row justify-content-between">
                 <div class="col-6" style="text-align: left;">
                   <h4>
@@ -149,6 +156,13 @@
             <a href="https://github.com/kcuzner/iotree">https://github.com/kcuzner/iotree</a>
           </p>
         </div>
+      </div>
+    </div>
+    <div id="growler" class="position-fixed growl-container">
+      <div v-for="message in messages" class="alert alert-secondary">
+        <strong><i class="fa fa-info-circle"></i></strong>
+        {% raw %}{{ message }}{% endraw %}
+      </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.1.1/socket.io.js" integrity="sha256-ji09tECORKvr8xB9iCl8DJ8iNMLriDchC1+p+yt1hSs=" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>

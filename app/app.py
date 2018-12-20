@@ -6,8 +6,9 @@ eventlet.monkey_patch()
 
 import socketio
 import argparse, io, json
-from flask import Flask, render_template, send_from_directory, request, Response
+from flask import Flask, render_template, send_from_directory, request, Response, jsonify
 import redis
+from collections import deque
 
 sio = socketio.Server()
 app = Flask(__name__)
@@ -24,6 +25,22 @@ def open_redis(settings):
     return redis.StrictRedis(host=settings['redis-hostname'], port=settings['redis-port'], password=password)
 
 db_app = None
+
+publish_deque = deque(maxlen=1024)
+
+def publish_task():
+    # Every 30ms, this task is run
+    #
+    # I schedule it as a new task so that I can handle exceptions here without too many problems
+    eventlet.greenthread.spawn_after(0.03, publish_task)
+    if len(publish_deque):
+        value = publish_deque.pop()
+        db_app.publish('pixels', json.dumps(value['pixels']))
+        sio.emit('pattern', {'data': {
+            'pattern': value['pixels'],
+            'user': value['ip'],
+            'remaining': len(publish_deque)
+            }})
 
 @app.route('/')
 def index():
@@ -69,6 +86,22 @@ def video_feed():
 
     return response
 
+class RepackException(Exception):
+    status_code = 400
+
+    def __init__(self, message):
+        Exception.__init__(self)
+        self.message = message
+
+    def to_dict(self):
+        return {'message': self.message}
+
+@app.errorhandler(RepackException)
+def handle_repack_error(error):
+    response = jsonify(error.to_dict())
+    response.status_code = error.status_code
+    return response
+
 def repack_pixels(raw):
     # Only support up to 50 pixels
     if len(raw) > 50:
@@ -110,13 +143,18 @@ def repack_pixels(raw):
         else:
             raise ValueError('No such pixel type')
 
-
 @app.route('/pattern', methods=['POST'])
 def pattern():
     j = request.get_json()
-    repacked = list(repack_pixels(j))
-    db_app.publish('pixels', json.dumps(j))
-    return json.dumps({ 'success': True }), 200, { 'content-type': 'application/json' }
+    try:
+        repacked = list(repack_pixels(j))
+    except Exception as e:
+        raise RepackException('Got error "' + str(type(e)) + '" while packaging pattern data: ' + e.message)
+    if len(publish_deque) == publish_deque.maxlen:
+        return json.dumps({ 'success': False, 'message': 'Internal publish queue is full, please try again' }, 429, { 'content-type': 'application/json' })
+    else:
+        publish_deque.append({'pixels': repacked, 'ip': request.access_route[0]})
+        return json.dumps({ 'success': True, 'position': len(publish_deque) }), 200, { 'content-type': 'application/json' }
 
 @sio.on('connect')
 def sio_connect(sid, environ):
@@ -133,6 +171,8 @@ if __name__ == '__main__':
     path_prefix = settings['path-prefix']
 
     db_app = open_redis(settings)
+
+    eventlet.greenthread.spawn(publish_task)
 
     app = socketio.Middleware(sio, app)
     eventlet.wsgi.server(eventlet.listen(('', 3000)), app)

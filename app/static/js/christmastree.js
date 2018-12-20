@@ -2,12 +2,15 @@
  * Christmas Tree Control
  */
 
+const socket = io('http://localhost', { path: "/app/socket.io", transports: ['websocket'], upgrade: false });
+
 Vue.directive('click-outside', {
     bind: function (el, binding, vnode) {
         el.clickOutsideEvent = function (ev) {
             if (!(el === ev.target || el.contains(ev.target))) {
                 vnode.context[binding.expression](ev);
             }
+            socket.emit('hello', 5);
         };
         document.body.addEventListener('click', el.clickOutsideEvent);
     },
@@ -27,6 +30,7 @@ Vue.directive('tooltip', {
 });
 
 Vue.component('vue-dropdown-menu', {
+
     template: '<div class="btn-group" v-click-outside="close"><div class="dropdown" :class="{\'show\': open}">'+
         '<button type="button" class="btn btn-light dropdown-toggle" @click="open = !open" v-html="title"></button>' +
         '<ul class="dropdown-menu" :class="{\'show\': open}">' +
@@ -194,6 +198,21 @@ var patctl = new Vue({
             value: 'Wall',
             data: 'wall',
         },],
+        frameCount: 0,
+        videoRunning: false,
+        videoRunningTimeout: null,
+    },
+    watch: {
+        frameCount: function () {
+            this.videoRunning = true;
+            if (!_.isNull(this.videoRunningTimeout)) {
+                clearTimeout(this.videoRunningTimeout);
+            }
+            var t = this;
+            this.videoRunningTimeout = setTimeout(function () {
+                t.videoRunning = false;
+            }, 3000);
+        },
     },
     methods: {
         load: function (preset) {
@@ -209,8 +228,12 @@ var patctl = new Vue({
                 contentType: 'application/json',
                 data: JSON.stringify(this.pattern),
             }).done(function () {
-            }).fail(function () {
-                console.log('fail', arguments);
+            }).fail(function (xhr, e, type) {
+                var message = 'Request Failed';
+                if ('message' in xhr.responseJSON) {
+                    message = xhr.responseJSON.message;
+                }
+                alert('Error ' + type + ': ' + message);
             });
         },
         colorof: function (keyframe) {
@@ -283,5 +306,25 @@ var patctl = new Vue({
             Vue.set(frame, 'type', type.data);
         },
     },
+});
+
+var growler = new Vue({
+    el: '#growler',
+    data: {
+        messages: []
+    },
+    methods: {
+        growl: function (message) {
+            this.messages.push(message);
+            var t = this;
+            setTimeout(function () {
+                t.messages.shift();
+            }, 2000);
+        },
+    },
+});
+
+socket.on('pattern', function (message) {
+    growler.growl('User at IP "' + message.data.user + '" sent a pattern!');
 });
 

@@ -46,3 +46,23 @@
   -webkit-text-fill-color: transparent;
 }
 
+.video-container {
+  display: grid;
+}
+
+.video-container > * {
+  grid-area: 1/1;
+}
+
+.overlay {
+  background-color: rgba(64, 64, 64, 0.75);
+  color: #ffffff;
+}
+
+.growl-container {
+  position: fixed;
+  right: 10px;
+  top: 10px;
+  width: 30%;
+}
+
