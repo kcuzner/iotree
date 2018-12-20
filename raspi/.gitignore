@@ -1,0 +1,5 @@
+settings.json
+run.settings.sh
+
+*.pyc
+
