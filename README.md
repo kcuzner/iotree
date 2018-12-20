@@ -1,8 +1,8 @@
-# Christmas Tree Controller
+# The IoTree
 
-This uses my WS281x USB dongle to control a Christmas Tree through the internet,
-negotiating requests from the unruly masses to make my tree many colors, while
-providing visual feedback through a webcam stream.
+This is an internet controlled tree that uses my
+[kl2-dev](https://github.com/kcuzner/kl2-dev) Kinetis microcontroller board to
+operate a string of WS2811 LEDs in response to requests from a server.
 
 ## Overall Plan
 
@@ -17,21 +17,19 @@ The application will have three parts:
 The main idea is that there will be a web app living in a subdirectory on my
 server which users can use to interact with my christmas tree. All communication
 proceeds through a Redis instance living on my cloud server. The Raspberry Pi
-will be given a key to the server and establish a connection to the cloud Redis
-instance via SSH port forwarding.
+will be allowed to connect to the Redis instance on that server.
 
-For the images, the Raspberry Pi will periodically publish *something* on a
-channel which is a frame of data from the camera. Whether this is straight up
-binary (a JPEG) or something Base64 encoded I have not determined yet. The
+For the images, the Raspberry Pi will periodically publish a JPEG to a value
+which is a frame of data from the camera. The data is published raw. The
 Raspberry Pi application will also subscribe to a channel which has user
-requests coming down from it. The exact nature of the requests I have not yet
-determined beyond saying that they'll have the ability to change the color or
-behavior of the LEDs on the tree.
+requests coming down from it. The requests are JSON-formatted lists of LED
+patterns to display.
 
 On the cloud side, the Flask-hosted application will serve up a simple HTML page
-which establishes a WebSocket connection back to the server. This connection is
-then used to receive new webcam image data as it arrives (through a subscription
-to the appropriate channel) and will publish LED requests from users on the
-appropriate channel. Ideally it should be a simple pass-through with maybe some
-sanitizing.
+which displays the camera image and provides a LED editor interface. This
+application connects to the Redis server and subscribes to value change
+requests. When a value change is detected, the image is read from Redis and sent
+to the user page using a `Content-Type: multipart/x-mixed-replace` (sorry IE).
+When the user wants to publish a new LED pattern, it is published to the channel
+that the Raspberry Pi is listening to.
 
